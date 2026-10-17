@@ -1,0 +1,26 @@
+{
+  "name": "shipstory-ci",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ShipStory CI: Automated Merge Request Blast-Radius Visualizer, Multi-Persona Release Notes & 1-Click GitLab Rollback Studio",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5182 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5182 --strictPort",
+    "test": "node --experimental-strip-types src/test/shipstory-verification.test.ts",
+    "check": "tsc --noEmit && npm test"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.9"
+  }
+}
