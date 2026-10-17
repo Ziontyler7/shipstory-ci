@@ -119,7 +119,7 @@ async function runVerificationSuite() {
   );
 
   // ---------------------------------------------------------------------------
-  // GATE 3: RollbackRunbookEngine (.gitlab-ci.yml Generation & Syntax Gate)
+  // GATE 3: RollbackRunbookEngine (.gitlab-ci.yml + Duo Custom Flow + MCP Gate)
   // ---------------------------------------------------------------------------
   for (const scenario of SHOWCASE_MR_SCENARIOS) {
     const runbook = generateRollbackRunbook(scenario);
@@ -132,12 +132,15 @@ async function runVerificationSuite() {
     );
     assert.equal(validation.stagesPresent.length, 4);
     assert.equal(validation.hasOnFailureRollback, true);
+    assert.equal(validation.hasEnvironmentLifecycleActions, true);
+    assert.equal(validation.hasDuoCustomFlowSpec, true);
+    assert.equal(validation.hasMcpToolsSpec, true);
     assert.equal(validation.hasUnresolvedPlaceholders, false);
     assert.equal(runbook.steps.length, 4);
     assert.ok(runbook.estimatedRecoverySeconds > 0);
   }
   console.log(
-    '✅ GATE 3 PASSED: RollbackRunbookEngine generated valid 4-stage .gitlab-ci.yml pipelines & 4-step revert checklists.'
+    '✅ GATE 3 PASSED: RollbackRunbookEngine generated valid 4-stage .gitlab-ci.yml, Duo Custom Flow YAML, & MCP payloads.'
   );
 
   // ---------------------------------------------------------------------------
@@ -191,7 +194,7 @@ async function runVerificationSuite() {
   );
 
   // ---------------------------------------------------------------------------
-  // GATE 6: Clean-Room Zero-Leak Audit (Source, Config & Devpost Docs)
+  // GATE 6: Clean-Room Zero-Leak Audit (Source, Config, LICENSE & Devpost Docs)
   // ---------------------------------------------------------------------------
   const forbiddenTerms = [
     ['E', 'd', 'i', 'o', 's'].join(''),
@@ -203,6 +206,8 @@ async function runVerificationSuite() {
   ];
 
   const filesToAudit = [
+    'LICENSE',
+    '.gitlab-ci.yml',
     'package.json',
     'tsconfig.json',
     'vite.config.ts',
@@ -233,7 +238,7 @@ async function runVerificationSuite() {
     }
   }
   console.log(
-    `✅ GATE 6 PASSED: Clean-room audit verified across all ${filesToAudit.length} source & Devpost files (0 leaks).`
+    `✅ GATE 6 PASSED: Clean-room audit verified across all ${filesToAudit.length} source, LICENSE, .gitlab-ci.yml & Devpost files (0 leaks).`
   );
 
   const elapsedMs = (performance.now() - startMs).toFixed(2);

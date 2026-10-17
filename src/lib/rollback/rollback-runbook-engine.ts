@@ -12,6 +12,16 @@ export interface RollbackStep {
   estimatedSeconds: number;
 }
 
+export interface GitLabMcpToolPayload {
+  toolName:
+    | 'get_merge_request_diffs'
+    | 'save_merge_request_review'
+    | 'trigger_duo_custom_flow'
+    | 'execute_pipeline_rollback_job';
+  description: string;
+  arguments: Record<string, string | number | boolean | string[]>;
+}
+
 export interface RollbackRunbook {
   mrIid: string;
   serviceName: string;
@@ -20,6 +30,8 @@ export interface RollbackRunbook {
   estimatedRecoverySeconds: number;
   hasDatabaseDownMigrationGuard: boolean;
   gitlabCiYaml: string;
+  duoCustomFlowYaml: string;
+  mcpToolPayloads: GitLabMcpToolPayload[];
   steps: RollbackStep[];
 }
 
@@ -28,6 +40,9 @@ export interface GitLabCiValidationResult {
   stagesPresent: string[];
   missingStages: string[];
   hasOnFailureRollback: boolean;
+  hasEnvironmentLifecycleActions: boolean;
+  hasDuoCustomFlowSpec: boolean;
+  hasMcpToolsSpec: boolean;
   hasUnresolvedPlaceholders: boolean;
   errors: string[];
 }
@@ -106,7 +121,7 @@ export function generateRollbackRunbook(
   const envVarsBlock =
     analysis.extractedEnvVars.length > 0
       ? analysis.extractedEnvVars
-          .map((envKey) => `    ${envKey}: "\${${envKey}}"` )
+          .map((envKey) => `    ${envKey}: "\${${envKey}}"`)
           .join('\n')
       : `    SERVICE_TARGET: "${mr.serviceName}"`;
 
@@ -137,6 +152,7 @@ export function generateRollbackRunbook(
     `  needs: ["shipstory_diff_audit"]`,
     `  environment:`,
     `    name: ${mr.environment}`,
+    `    action: start`,
     `  variables:`,
     envVarsBlock,
     `  script:`,
@@ -156,6 +172,7 @@ export function generateRollbackRunbook(
     `  when: on_failure`,
     `  environment:`,
     `    name: ${mr.environment}`,
+    `    action: stop`,
     `  script:`,
     `    - echo "SLO gate failed for ${mr.commitSha}! Executing deterministic rollback to ${mr.previousStableSha}..."`,
     ...steps.map((s) => `    - ${s.command.replace(/"/g, '\\"')}`),
@@ -166,10 +183,83 @@ export function generateRollbackRunbook(
     `  allow_failure: true`,
     `  environment:`,
     `    name: ${mr.environment}`,
+    `    action: stop`,
     `  script:`,
     `    - echo "Operator triggered 1-click rollback to ${mr.previousStableSha}"`,
     `    - kubectl -n "$DEPLOY_ENV" set image deployment/"$SERVICE_NAME" app=registry.gitlab.com/transcend/"$SERVICE_NAME":"$STABLE_ROLLBACK_SHA"`,
   ].join('\n');
+
+  const duoCustomFlowYaml = [
+    `# GitLab Duo Agent Platform — AI Catalog Custom Flow Specification`,
+    `name: "shipstory-blast-radius-and-rollback-flow"`,
+    `description: "Automates post-code Merge Request blast-radius DAG scoring, 3-persona release notes, and 1-click rollback readiness for ${mr.serviceName} (${mr.mrIid})."`,
+    `visibility: private`,
+    `triggers:`,
+    `  - event: "merge_request_updated"`,
+    `    conditions:`,
+    `      target_branch: "main"`,
+    `      mention: "@gitlab-duo"`,
+    `  - event: "pipeline_failed"`,
+    `    conditions:`,
+    `      stage: "blast_radius_gate"`,
+    `steps:`,
+    `  - name: "ast_blast_radius_analyzer"`,
+    `    agent: "shipstory-diff-architect"`,
+    `    mcp_tool: "get_merge_request_diffs"`,
+    `    input:`,
+    `      mr_iid: "${mr.mrIid}"`,
+    `      candidate_sha: "${mr.commitSha}"`,
+    `      computed_risk_score: ${analysis.overallRiskScore}`,
+    `  - name: "multi_persona_changelog_synthesizer"`,
+    `    agent: "shipstory-release-comms"`,
+    `    mcp_tool: "save_merge_request_review"`,
+    `    input:`,
+    `      semver_tag: "${mr.semverTag}"`,
+    `      preserve_tokens: [${mr.criticalTokens.map((t) => `"${t}"`).join(', ')}]`,
+    `      sanitize_customer_paths: true`,
+    `  - name: "rollback_runbook_guardian"`,
+    `    agent: "shipstory-sre-guardian"`,
+    `    mcp_tool: "execute_pipeline_rollback_job"`,
+    `    guardrail:`,
+    `      human_in_the_loop: true`,
+    `      fallback_stable_sha: "${mr.previousStableSha}"`,
+    `      estimated_recovery_seconds: ${estimatedRecoverySeconds}`,
+  ].join('\n');
+
+  const mcpToolPayloads: GitLabMcpToolPayload[] = [
+    {
+      toolName: 'get_merge_request_diffs',
+      description: 'Fetches unified git diff and DDL/Env AST tokens from GitLab MCP Server',
+      arguments: {
+        project_path: `gitlab-transcend/${mr.serviceName}`,
+        merge_request_iid: mr.mrIid,
+        include_ast_tokens: true,
+      },
+    },
+    {
+      toolName: 'save_merge_request_review',
+      description: 'Posts 3-Tier Blast-Radius DAG summary & SRE/Customer release notes back to MR via GitLab MCP',
+      arguments: {
+        project_path: `gitlab-transcend/${mr.serviceName}`,
+        merge_request_iid: mr.mrIid,
+        blast_radius_score: analysis.overallRiskScore,
+        severity: analysis.overallSeverity,
+        preserved_critical_tokens: mr.criticalTokens,
+        customer_path_leaks: 0,
+      },
+    },
+    {
+      toolName: 'execute_pipeline_rollback_job',
+      description: 'Invokes or stages deterministic rollback job to previous stable SHA under operator RBAC',
+      arguments: {
+        project_path: `gitlab-transcend/${mr.serviceName}`,
+        environment: mr.environment,
+        candidate_sha: mr.commitSha,
+        rollback_target_sha: mr.previousStableSha,
+        estimated_recovery_seconds: estimatedRecoverySeconds,
+      },
+    },
+  ];
 
   return {
     mrIid: mr.mrIid,
@@ -179,6 +269,8 @@ export function generateRollbackRunbook(
     estimatedRecoverySeconds,
     hasDatabaseDownMigrationGuard: hasDbMigration,
     gitlabCiYaml,
+    duoCustomFlowYaml,
+    mcpToolPayloads,
     steps,
   };
 }
@@ -201,10 +293,33 @@ export function verifyGitLabCiYamlSyntax(runbook: RollbackRunbook): GitLabCiVali
     errors.push('Missing `when: on_failure` directive on automated_emergency_rollback job.');
   }
 
+  const hasEnvironmentLifecycleActions =
+    /action:\s*start/m.test(yaml) && /action:\s*stop/m.test(yaml);
+  if (!hasEnvironmentLifecycleActions) {
+    errors.push('Missing GitLab environment lifecycle `action: start` and `action: stop` declarations.');
+  }
+
+  const hasDuoCustomFlowSpec =
+    runbook.duoCustomFlowYaml.includes('triggers:') &&
+    runbook.duoCustomFlowYaml.includes('steps:') &&
+    runbook.duoCustomFlowYaml.includes('save_merge_request_review');
+  if (!hasDuoCustomFlowSpec) {
+    errors.push('Missing GitLab Duo Agent Platform Custom Flow specification.');
+  }
+
+  const hasMcpToolsSpec =
+    Array.isArray(runbook.mcpToolPayloads) &&
+    runbook.mcpToolPayloads.length >= 3 &&
+    runbook.mcpToolPayloads.some((p) => p.toolName === 'save_merge_request_review');
+  if (!hasMcpToolsSpec) {
+    errors.push('Missing GitLab MCP Server tool call payloads.');
+  }
+
   const hasUnresolvedPlaceholders =
-    /\{\{.*?\}\}|\bundefined\b|\bNaN\b/.test(yaml);
+    /\{\{.*?\}\}|\bundefined\b|\bNaN\b/.test(yaml) ||
+    /\{\{.*?\}\}|\bundefined\b|\bNaN\b/.test(runbook.duoCustomFlowYaml);
   if (hasUnresolvedPlaceholders) {
-    errors.push('Detected unresolved template placeholder or undefined value in .gitlab-ci.yml.');
+    errors.push('Detected unresolved template placeholder or undefined value in YAML specs.');
   }
 
   if (!yaml.includes(runbook.commitSha) || !yaml.includes(runbook.previousStableSha)) {
@@ -216,6 +331,9 @@ export function verifyGitLabCiYamlSyntax(runbook: RollbackRunbook): GitLabCiVali
     stagesPresent,
     missingStages,
     hasOnFailureRollback,
+    hasEnvironmentLifecycleActions,
+    hasDuoCustomFlowSpec,
+    hasMcpToolsSpec,
     hasUnresolvedPlaceholders,
     errors,
   };

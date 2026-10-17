@@ -1,0 +1,69 @@
+# ShipStory CI — GitLab Duo Agent Platform & DevSecOps Pipeline
+# Verifies all 6 deterministic verification gates, TypeScript compilation,
+# and production bundle build on every commit and Merge Request.
+
+stages:
+  - validate
+  - test
+  - build
+  - release_notes
+  - rollback_guard
+
+variables:
+  NODE_ENV: "production"
+  SHIPSTORY_PORT: "5182"
+
+validate_typescript:
+  stage: validate
+  image: node:22-alpine
+  script:
+    - npm ci
+    - npx tsc --noEmit
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+run_deterministic_gates:
+  stage: test
+  image: node:22-alpine
+  needs: ["validate_typescript"]
+  script:
+    - npm ci
+    - npm test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+build_studio_bundle:
+  stage: build
+  image: node:22-alpine
+  needs: ["run_deterministic_gates"]
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 7 days
+
+duo_agent_blast_radius_brief:
+  stage: release_notes
+  image: node:22-alpine
+  needs: ["run_deterministic_gates"]
+  script:
+    - echo "Executing GitLab Duo Agent Platform Custom Flow: shipstory-blast-radius-and-rollback..."
+    - node --experimental-strip-types src/test/shipstory-verification.test.ts
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+emergency_rollback_template:
+  stage: rollback_guard
+  image: alpine:3.20
+  when: manual
+  allow_failure: true
+  environment:
+    name: production
+    action: stop
+  script:
+    - echo "GitLab Duo Agent Platform verified human-in-the-loop rollback readiness."

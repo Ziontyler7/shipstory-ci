@@ -123,6 +123,9 @@ export default function App() {
   );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [activePersona, setActivePersona] = useState<ReleasePersona>('sre');
+  const [activeArtifactTab, setActiveArtifactTab] = useState<
+    'gitlab-ci' | 'duo-flow' | 'mcp-tools'
+  >('gitlab-ci');
   const [provider, setProvider] = useState<InferenceProvider>('local-deterministic');
   const [byokKey, setByokKey] = useState<string>('');
   const [copiedBanner, setCopiedBanner] = useState<string | null>(null);
@@ -703,35 +706,47 @@ export default function App() {
             <pre className="markdown-box mono">{activeChangelogMarkdown}</pre>
           </section>
 
-          {/* Panel 3: Deterministic 1-Click Rollback & .gitlab-ci.yml Runbook */}
+          {/* Panel 3: Deterministic 1-Click Rollback, Duo Custom Flow & MCP Studio */}
           <section className="panel-card">
             <div className="panel-header">
               <div>
                 <h2 className="panel-title">
-                  <RotateCcwIcon /> 5. Deterministic 1-Click Rollback &{' '}
-                  <code className="mono">.gitlab-ci.yml</code> Generator
+                  <RotateCcwIcon /> 5. Deterministic 1-Click Rollback, Duo Custom Flow &amp;{' '}
+                  <code className="mono">.gitlab-ci.yml</code> Studio
                 </h2>
                 <div style={{ fontSize: '0.76rem', color: '#94a3b8', marginTop: 2 }}>
                   Estimated Full Recovery Time:{' '}
                   <strong>{rollbackRunbook.estimatedRecoverySeconds}s</strong> · Revert Target:{' '}
-                  <code className="mono">{rollbackRunbook.previousStableSha}</code>
+                  <code className="mono">{rollbackRunbook.previousStableSha}</code> · Duo Agent Platform + MCP Ready
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span className="badge-pill badge-emerald">
                   <CheckIcon />{' '}
                   {yamlValidation.valid
-                    ? `Valid .gitlab-ci.yml (${yamlValidation.stagesPresent.length}/4 Stages)`
+                    ? `Valid CI + Duo Flow + MCP (${yamlValidation.stagesPresent.length}/4 Stages)`
                     : 'YAML Error'}
                 </span>
                 <button
                   type="button"
                   className="action-btn"
-                  onClick={() =>
-                    handleCopyText('.gitlab-ci.yml Rollback Pipeline', rollbackRunbook.gitlabCiYaml)
-                  }
+                  onClick={() => {
+                    const label =
+                      activeArtifactTab === 'gitlab-ci'
+                        ? '.gitlab-ci.yml Rollback Pipeline'
+                        : activeArtifactTab === 'duo-flow'
+                        ? 'GitLab Duo Custom Flow YAML'
+                        : 'GitLab MCP Server Tool Payloads';
+                    const content =
+                      activeArtifactTab === 'gitlab-ci'
+                        ? rollbackRunbook.gitlabCiYaml
+                        : activeArtifactTab === 'duo-flow'
+                        ? rollbackRunbook.duoCustomFlowYaml
+                        : JSON.stringify(rollbackRunbook.mcpToolPayloads, null, 2);
+                    handleCopyText(label, content);
+                  }}
                 >
-                  Copy .gitlab-ci.yml
+                  Copy Active Spec
                 </button>
               </div>
             </div>
@@ -784,7 +799,37 @@ export default function App() {
               ))}
             </div>
 
-            <pre className="markdown-box mono">{rollbackRunbook.gitlabCiYaml}</pre>
+            <div className="tab-strip" style={{ marginBottom: 12, marginTop: 12 }}>
+              <button
+                type="button"
+                className={`tab-btn ${activeArtifactTab === 'gitlab-ci' ? 'active' : ''}`}
+                onClick={() => setActiveArtifactTab('gitlab-ci')}
+              >
+                .gitlab-ci.yml Pipeline (action: start / stop)
+              </button>
+              <button
+                type="button"
+                className={`tab-btn ${activeArtifactTab === 'duo-flow' ? 'active' : ''}`}
+                onClick={() => setActiveArtifactTab('duo-flow')}
+              >
+                GitLab Duo Agent Platform Custom Flow (AI Catalog YAML)
+              </button>
+              <button
+                type="button"
+                className={`tab-btn ${activeArtifactTab === 'mcp-tools' ? 'active' : ''}`}
+                onClick={() => setActiveArtifactTab('mcp-tools')}
+              >
+                GitLab MCP Server Tool Payloads ({rollbackRunbook.mcpToolPayloads.length})
+              </button>
+            </div>
+
+            <pre className="markdown-box mono">
+              {activeArtifactTab === 'gitlab-ci'
+                ? rollbackRunbook.gitlabCiYaml
+                : activeArtifactTab === 'duo-flow'
+                ? rollbackRunbook.duoCustomFlowYaml
+                : JSON.stringify(rollbackRunbook.mcpToolPayloads, null, 2)}
+            </pre>
           </section>
         </div>
       </div>
