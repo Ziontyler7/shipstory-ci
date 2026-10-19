@@ -9,7 +9,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 5182 --strictPort",
     "test": "node --experimental-strip-types src/test/shipstory-verification.test.ts",
-    "check": "tsc --noEmit && npm test"
+    "check": "tsc --noEmit && npm test",
+    "deploy:firebase": "npm run check && npm run build && npx firebase-tools deploy --only hosting",
+    "deploy:preview": "npm run check && npm run build && npx firebase-tools hosting:channel:deploy gitlab-judges-2026 --expires 30d",
+    "disable:firebase": "npx firebase-tools hosting:disable --site shipstory-ci -f"
   },
   "dependencies": {
     "react": "^18.3.1",

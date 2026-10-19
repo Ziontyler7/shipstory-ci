@@ -216,6 +216,8 @@ async function runVerificationSuite() {
     'devpost/PRD.md',
     'devpost/ARCHITECTURE.md',
     'devpost/SUBMISSION_CHECKLIST.md',
+    'devpost/DEVPOST_SUBMISSION.md', 'devpost/PRD.md', 'devpost/ARCHITECTURE.md', 'devpost/SUBMISSION_CHECKLIST.md', 'firebase.json',
+    '.env.example',
     'src/main.tsx',
     'src/App.tsx',
     'src/styles.css',

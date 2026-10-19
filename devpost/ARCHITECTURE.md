@@ -22,3 +22,8 @@ flowchart LR
 | **ReleaseNotesEngine** | `src/lib/changelog/release-notes-engine.ts` | Synthesizes SRE, Customer, and Executive release briefs across 4 production MRs or custom diffs; enforces 100% critical token retention in SRE notes and 0 internal file path leaks in Customer notes (`verifyArtifactPreservation`). |
 | **RollbackRunbookEngine** | `src/lib/rollback/rollback-runbook-engine.ts` | Produces 4-step incident revert runbooks and copy-ready `.gitlab-ci.yml` canary + auto-rollback pipelines (`verifyGitLabCiYamlSyntax`). |
 | **GitLabAIAdapter** | `src/lib/ai/gitlab-ai-adapter.ts` | Provides 0ms local deterministic inference by default plus optional live LLM synthesis guarded by a `4.5s` `AbortController` circuit breaker (`runShipStoryPipeline`). |
+
+## 3. GitLab Duo Agent Platform & MCP Server Contract (`rollback-runbook-engine.ts`)
+
+- **Duo Custom Flow Schema**: `version: "ai_catalog_flow/v1"` with `@gitlab-duo` trigger and deterministic step orchestration.
+- **GitLab MCP Server Tools**: JSON-RPC `2.0` `tools/call` payloads for `get_merge_request_diffs`, `save_merge_request_review`, and `execute_pipeline_rollback_job`.

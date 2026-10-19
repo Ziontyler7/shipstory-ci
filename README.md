@@ -32,3 +32,9 @@ npm run dev
 - **Gate 3 (`RollbackRunbookEngine`)**: Generates copy-ready `.gitlab-ci.yml` canary + automated rollback pipelines and 4-step incident revert checklists (`verifyGitLabCiYamlSyntax`).
 - **Gate 4 (`GitLabAIAdapter`)**: Instant 0ms local deterministic mode for zero-key judge evaluation + `4.5s` `AbortController` timeout fallback (`runShipStoryPipeline`).
 - **Gate 5 & Gate 6 (`Clean-Room & Port 5182 Isolation Audit`)**: Zero proprietary leakage and strict binding to `127.0.0.1:5182` (`strictPort: true`).
+
+## 🤖 GitLab Duo Agent Platform (`ai_catalog_flow/v1`) & GitLab MCP Server Integration
+
+- **Root GitLab CI Pipeline & MIT License**: Includes root [`.gitlab-ci.yml`](.gitlab-ci.yml) (`validate` ➔ `test` ➔ `build` ➔ `release_notes` ➔ `rollback_guard`) and root MIT [`LICENSE`](LICENSE).
+- **GitLab Duo Custom Flow YAML (`duoCustomFlowYaml`)**: Generates ready-to-register `ai_catalog_flow/v1` agent definitions triggered via `@gitlab-duo` in Merge Request comments.
+- **GitLab MCP Server Tool Payloads (`mcpToolPayloads`)**: Synthesizes JSON-RPC 2.0 tool-call payloads for `get_merge_request_diffs`, `save_merge_request_review`, and `execute_pipeline_rollback_job`, paired with `environment: action: start` and `action: stop` rollback deployment blocks.

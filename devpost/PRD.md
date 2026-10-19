@@ -25,3 +25,5 @@ Writing code is only the first 20% of shipping software. Once a developer opens 
   - **Executive & SLA Impact Brief**
 - **Engine 3 — Deterministic 1-Click Rollback & `.gitlab-ci.yml` Generator**: Generates a validated 4-stage GitLab CI/CD pipeline (`validate`, `canary_deploy`, `blast_radius_gate`, `auto_rollback` with `when: on_failure` and `when: manual`) alongside a step-by-step recovery runbook with estimated recovery time in seconds.
 - **Engine 4 — 0ms Deterministic AST + Optional BYOK AI Adapter**: Runs out-of-the-box in 0ms with zero API keys required for hackathon judges, while supporting optional BYOK / GitLab Duo synthesis protected by a `4.5s` `AbortController` circuit breaker.
+
+- **Engine 3 — GitLab Duo Custom Flow (`ai_catalog_flow/v1`) & GitLab MCP Server Studio**: Emits copy-ready GitLab Duo Agent Platform custom flow YAML (`@gitlab-duo` MR mention trigger), JSON-RPC 2.0 GitLab MCP Server tool calls (`get_merge_request_diffs`, `save_merge_request_review`, `execute_pipeline_rollback_job`), and `.gitlab-ci.yml` `environment: action: start/stop` auto-rollback pipelines.
