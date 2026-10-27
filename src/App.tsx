@@ -23,6 +23,48 @@ import {
 
 const STORAGE_KEY = 'shipstory_studio_state_v1';
 
+const JUDGE_BLIND_TEST_DIFFS: Array<{
+  id: string;
+  label: string;
+  title: string;
+  rawDiff: string;
+}> = [
+  {
+    id: 'blind-sql-drop-column',
+    label: 'Unseen SQL DROP COLUMN Diff',
+    title: 'feat(billing-db)!: drop legacy stripe_customer_v1 column & rotate webhook secret',
+    rawDiff: [
+      'diff --git a/migrations/20261027_drop_legacy_customer.sql b/migrations/20261027_drop_legacy_customer.sql',
+      '--- a/migrations/20261027_drop_legacy_customer.sql',
+      '+++ b/migrations/20261027_drop_legacy_customer.sql',
+      '@@ -1,4 +1,6 @@',
+      '+ALTER TABLE billing_accounts DROP COLUMN stripe_customer_v1;',
+      '+CREATE INDEX CONCURRENTLY idx_billing_tenant_v2 ON billing_accounts (tenant_id);',
+      'diff --git a/src/billing/webhook-handler.ts b/src/billing/webhook-handler.ts',
+      '--- a/src/billing/webhook-handler.ts',
+      '+++ b/src/billing/webhook-handler.ts',
+      '@@ -14,3 +14,4 @@',
+      '-const secret = process.env.STRIPE_WEBHOOK_SECRET;',
+      '+const secret = process.env.STRIPE_WEBHOOK_SECRET_V2;',
+      '+const maxRetries = Number(process.env.BILLING_MAX_RETRIES || 5);',
+    ].join('\n'),
+  },
+  {
+    id: 'blind-k8s-auth-timeout',
+    label: 'Unseen Auth JWT & Redis Pool Diff',
+    title: 'refactor(auth-gateway): tighten JWT expiry & Redis connection pool limits',
+    rawDiff: [
+      'diff --git a/src/auth/jwt-verifier.ts b/src/auth/jwt-verifier.ts',
+      '--- a/src/auth/jwt-verifier.ts',
+      '+++ b/src/auth/jwt-verifier.ts',
+      '@@ -8,4 +8,5 @@',
+      '-const issuer = process.env.JWT_ISSUER_URI;',
+      '+const issuer = process.env.OAUTH_STRICT_ISSUER_URI;',
+      '+const redisPoolMax = Number(process.env.REDIS_AUTH_POOL_MAX || 32);',
+    ].join('\n'),
+  },
+];
+
 // Zero-dependency inline SVG icons
 function GitMergeIcon() {
   return (
@@ -131,6 +173,10 @@ export default function App() {
   const [copiedBanner, setCopiedBanner] = useState<string | null>(null);
   const [pipelineLatencyMs, setPipelineLatencyMs] = useState<number>(0.42);
   const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
+  const [sreApprovalDecision, setSreApprovalDecision] = useState<
+    'PENDING_HUMAN_REVIEW' | 'APPROVED_FOR_CANARY' | 'ROLLBACK_ARMED'
+  >('PENDING_HUMAN_REVIEW');
+  const [sreApproverHandle, setSreApproverHandle] = useState<string>('@sre-oncall-lead');
 
   useEffect(() => {
     try {
@@ -326,6 +372,41 @@ export default function App() {
               >
                 {useCustomDiff ? 'Use Preset MRs' : 'Paste Custom Diff'}
               </button>
+            </div>
+
+            {/* Judge Live Unseen Diff Blind-Test Bar */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 10,
+                padding: '8px 10px',
+                borderRadius: 8,
+                background: 'rgba(252, 109, 38, 0.08)',
+                border: '1px dashed rgba(252, 109, 38, 0.5)',
+              }}
+            >
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#fdba74' }}>
+                🧪 Judge Live Blind-Test:
+              </span>
+              {JUDGE_BLIND_TEST_DIFFS.map((sample) => (
+                <button
+                  key={sample.id}
+                  type="button"
+                  className="action-btn"
+                  style={{ fontSize: '0.7rem', padding: '4px 8px' }}
+                  onClick={() => {
+                    setUseCustomDiff(true);
+                    setCustomTitle(sample.title);
+                    setCustomDiffText(sample.rawDiff);
+                    setSreApprovalDecision('PENDING_HUMAN_REVIEW');
+                  }}
+                >
+                  {sample.label}
+                </button>
+              ))}
             </div>
 
             {!useCustomDiff ? (
@@ -830,6 +911,84 @@ export default function App() {
                 ? rollbackRunbook.duoCustomFlowYaml
                 : JSON.stringify(rollbackRunbook.mcpToolPayloads, null, 2)}
             </pre>
+
+            {/* Human-in-the-Loop On-Call SRE Release & Rollback Approval Gate */}
+            <div
+              style={{
+                marginTop: 14,
+                padding: '12px 14px',
+                borderRadius: 10,
+                background:
+                  sreApprovalDecision === 'APPROVED_FOR_CANARY'
+                    ? 'rgba(16, 185, 129, 0.12)'
+                    : sreApprovalDecision === 'ROLLBACK_ARMED'
+                    ? 'rgba(244, 63, 94, 0.14)'
+                    : 'rgba(15, 23, 42, 0.9)',
+                border:
+                  sreApprovalDecision === 'APPROVED_FOR_CANARY'
+                    ? '1px solid rgba(16, 185, 129, 0.5)'
+                    : sreApprovalDecision === 'ROLLBACK_ARMED'
+                    ? '1px solid rgba(244, 63, 94, 0.6)'
+                    : '1px solid rgba(252, 109, 38, 0.45)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f8fafc' }}>
+                  🛡️ Human-in-the-Loop On-Call SRE Release &amp; Rollback Gate (“A person still approves every critical action”)
+                </div>
+                <span className="badge-pill badge-gitlab mono">
+                  Status: {sreApprovalDecision}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  aria-label="On-Call SRE Handle"
+                  value={sreApproverHandle}
+                  onChange={(e) => setSreApproverHandle(e.target.value)}
+                  style={{
+                    background: '#070a12',
+                    color: '#f8fafc',
+                    border: '1px solid rgba(148,163,184,0.3)',
+                    borderRadius: 6,
+                    padding: '6px 10px',
+                    fontSize: '0.76rem',
+                    width: 180,
+                  }}
+                />
+                <button
+                  type="button"
+                  className="action-btn"
+                  onClick={() => setSreApprovalDecision('APPROVED_FOR_CANARY')}
+                  style={{
+                    borderColor: '#10b981',
+                    color: '#6ee7b7',
+                  }}
+                >
+                  ✓ Approve Production Canary ({sreApproverHandle})
+                </button>
+                <button
+                  type="button"
+                  className="action-btn"
+                  onClick={() => setSreApprovalDecision('ROLLBACK_ARMED')}
+                  style={{
+                    borderColor: '#f43f5e',
+                    color: '#fda4af',
+                  }}
+                >
+                  ⚠ Hold Merge &amp; Arm {rollbackRunbook.previousStableSha} Rollback
+                </button>
+              </div>
+            </div>
           </section>
         </div>
       </div>
